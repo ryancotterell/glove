@@ -24,7 +24,7 @@ class Glove(object):
         self.gradsqW         = np.ones_like(self.W, dtype=np.float64)
         self.gradsqC  = np.ones_like(self.C, dtype=np.float64)
 
-    def train(self, step_size=0.05, workers = 9, batch_size=50, verbose=False):
+    def train(self, step_size=0.1, workers = 9, batch_size=50, verbose=False):
         jobs = Queue(maxsize=2 * workers)
         lock = threading.Lock()  # for shared state (=number of words trained so far, log reports...)
         total_error = [0.0]
