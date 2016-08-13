@@ -76,8 +76,8 @@ cdef inline void poisson(
     # take gradient steps with AdaGrad
     for b in range(vector_size):
         # compute the gradients 
-        gW = (fscore + exp(dot)) * C[b + l2]
-        gC = (fscore + exp(dot)) * W[b + l1]
+        gW = f_ij * (-x_ij + exp(dot)) * C[b + l2]
+        gC = f_ij * (-x_ij + exp(dot)) * W[b + l2]
         
         # adaptive learning rate updates (Duchi et al. 2011)
         W[b + l1] -= (gW / sqrt(gradsqW[b + l1]))
@@ -111,7 +111,7 @@ cdef void train_thread(
 
         # compute annealing term
         f_ij = 1.0 if (x_ij > x_max) else pow(x_ij / x_max, alpha)
-        gaussian(W, C, gradsqW, gradsqC, error, vector_size, step_size, l1, l2, dot, x_ij, f_ij)
+        poisson(W, C, gradsqW, gradsqC, error, vector_size, step_size, l1, l2, dot, x_ij, f_ij)
 
 
 def train_model(model, jobs, float _step_size, _error):
