@@ -24,7 +24,7 @@ class Glove(object):
         self.gradsqW         = np.ones_like(self.W, dtype=np.float64)
         self.gradsqC  = np.ones_like(self.C, dtype=np.float64)
 
-    def train(self, step_size=0.05, workers = 9, batch_size=50, verbose=False):
+    def train(self, step_size=0.05, workers=9, batch_size=50, verbose=False):
         jobs = Queue(maxsize=2 * workers)
         lock = threading.Lock()  # for shared state (=number of words trained so far, log reports...)
         total_error = [0.0]
@@ -35,14 +35,14 @@ class Glove(object):
             for subkey in self.cooccurence[key]:
                 total_els += 1
 
-        # Worker function:
+        # worker function:
         def worker_train():
             error = np.zeros(1, dtype = np.float64)
             while True:
                 job = jobs.get()
                 if job is None:  # data finished, exit
                     break
-                train_glove(self, job, step_size, error)
+                train_model(self, job, step_size, error)
                 with lock:
                     total_error[0] += error[0]
                     total_done[0] += len(job[0])
@@ -51,13 +51,13 @@ class Glove(object):
                             print("Completed %.3f%%\r" % (100.0 * total_done[0] / total_els))
                 error[0] = 0.0
 
-        # Create workers
+        # create workers
         workers_threads = [threading.Thread(target=worker_train) for _ in range(workers)]
         for thread in workers_threads:
             thread.daemon = True  # make interrupting the process with ctrl+c easier
             thread.start()
 
-        # Batch co-occurence pieces
+        # batch co-occurence pieces
         batch_length = 0
         batch = []
         num_examples = 0
