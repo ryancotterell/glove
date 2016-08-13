@@ -56,9 +56,9 @@ cdef void train_glove_thread(
 
 def train_glove(model, jobs, float _step_size, _error):
     cdef REAL_t *W              = <REAL_t *>(np.PyArray_DATA(model.W))
-    cdef REAL_t *C       = <REAL_t *>(np.PyArray_DATA(model.ContextW))
+    cdef REAL_t *C       = <REAL_t *>(np.PyArray_DATA(model.C))
     cdef REAL_t *gradsqW        = <REAL_t *>(np.PyArray_DATA(model.gradsqW))
-    cdef REAL_t *gradsqC = <REAL_t *>(np.PyArray_DATA(model.gradsqContextW))
+    cdef REAL_t *gradsqC = <REAL_t *>(np.PyArray_DATA(model.gradsqC))
 
     cdef REAL_t *error          = <REAL_t *>(np.PyArray_DATA(_error))
 
