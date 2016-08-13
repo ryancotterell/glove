@@ -23,7 +23,7 @@ from libc.math cimport exp, log, pow, sqrt
 ctypedef np.float64_t REAL_t
 ctypedef np.uint32_t  INT_t
 
-cdef void gaussian(
+cdef inline void gaussian(
         REAL_t* W, REAL_t* C,
         REAL_t* gradsqW, REAL_t* gradsqC,
         REAL_t* error,
@@ -55,7 +55,7 @@ cdef void gaussian(
         gradsqW[b + l1] += gW * gW
         gradsqC[b + l2] += gC * gC
 
-cdef void poisson(
+cdef inline void poisson(
         REAL_t* W, REAL_t* C,
         REAL_t* gradsqW, REAL_t* gradsqC,
         REAL_t* error,

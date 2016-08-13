@@ -5,7 +5,7 @@ import numpy as np
 import pyximport
 pyximport.install(setup_args={"include_dirs": np.get_include()})
 
-from .glove_inner import train_glove
+from .glove_inner import train_model
 
 class Glove(object):
     def __init__(self, cooccurence, alpha=0.75, x_max=100.0, d=50, seed=1234):
@@ -68,9 +68,9 @@ class Glove(object):
                 if batch_length >= batch_size:
                     jobs.put(
                         (
-                            np.array([k for k,s,c in batch], dtype=np.int32),
-                            np.array([s for k,s,c in batch], dtype=np.int32),
-                            np.array([c for k,s,c in batch], dtype=np.float64)
+                            np.array([k for (k,_,_) in batch], dtype=np.int32),
+                            np.array([s for (_,s,_) in batch], dtype=np.int32),
+                            np.array([c for (_,_,c) in batch], dtype=np.float64)
                         )
                     )
                     num_examples += len(batch)
@@ -79,9 +79,9 @@ class Glove(object):
         if len(batch) > 0:
             jobs.put(
                 (
-                    np.array([k for k,s,c in batch], dtype=np.int32),
-                    np.array([s for k,s,c in batch], dtype=np.int32),
-                    np.array([c for k,s,c in batch], dtype=np.float64)
+                    np.array([k for (k,_,_) in batch], dtype=np.int32),
+                    np.array([s for (_,s,_) in batch], dtype=np.int32),
+                    np.array([c for (_,_,c) in batch], dtype=np.float64)
                 )
             )
             num_examples += len(batch)
