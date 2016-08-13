@@ -20,13 +20,9 @@ class Glove(object):
         self.seed            = seed
         np.random.seed(seed)
         self.W               = np.random.uniform(-0.5/d, 0.5/d, (len(cooccurence), d)).astype(np.float64)
-        self.ContextW        = np.random.uniform(-0.5/d, 0.5/d, (len(cooccurence), d)).astype(np.float64)
-        self.b               = np.random.uniform(-0.5/d, 0.5/d, (len(cooccurence), 1)).astype(np.float64)
-        self.ContextB        = np.random.uniform(-0.5/d, 0.5/d, (len(cooccurence), 1)).astype(np.float64)
+        self.C        = np.random.uniform(-0.5/d, 0.5/d, (len(cooccurence), d)).astype(np.float64)
         self.gradsqW         = np.ones_like(self.W, dtype=np.float64)
-        self.gradsqContextW  = np.ones_like(self.ContextW, dtype=np.float64)
-        self.gradsqb         = np.ones_like(self.b, dtype=np.float64)
-        self.gradsqContextB  = np.ones_like(self.ContextB, dtype=np.float64)
+        self.gradsqC  = np.ones_like(self.C, dtype=np.float64)
 
     def train(self, step_size=0.05, workers = 9, batch_size=50, verbose=False):
         jobs = Queue(maxsize=2 * workers)
