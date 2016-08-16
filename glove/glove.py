@@ -8,23 +8,50 @@ pyximport.install(setup_args={"include_dirs": np.get_include()})
 from .glove_inner import train_model
 
 class Glove(object):
-    def __init__(self, cooccurence, alpha=0.75, x_max=100.0, d=50, seed=1234):
+    def __init__(self, cooccurence, alpha=0.75, x_max=100.0, d=50, seed=1234, gamma1=0.0, gamma2=0.0, model_type='gaussian', W=None, C=None):
         """
         Glove model for obtaining dense embeddings from a
         co-occurence (sparse) matrix.
         """
+        self.gamma1, self.gamma2 = gamma1, gamma2
+
+        # set the model type
+        if model_type == 'gaussian':
+            print 'Gaussian'
+            self.model_type = 0
+        elif model_type == 'poisson':
+            print 'Poisson'
+            self.model_type = 1
+        else:
+            raise
+
+
+        self.low, self.high = -5.0, 5.0
         self.alpha           = alpha
         self.x_max           = x_max
         self.d               = d
         self.cooccurence     = cooccurence
         self.seed            = seed
-        np.random.seed(seed)
-        self.W               = np.random.uniform(-0.5/d, 0.5/d, (len(cooccurence), d)).astype(np.float64)
-        self.C        = np.random.uniform(-0.5/d, 0.5/d, (len(cooccurence), d)).astype(np.float64)
-        self.gradsqW         = np.ones_like(self.W, dtype=np.float64)
-        self.gradsqC  = np.ones_like(self.C, dtype=np.float64)
+        #np.random.seed(seed)
+        if W is not None:
+            self.W = W
+        else:
+            self.W = np.random.uniform(-self.low/d, self.high/d, (len(cooccurence), d)).astype(np.float64)
+        if C is not None:
+            self.C = C
+        else:
+            self.C = np.random.uniform(-self.low/d, self.high/d, (len(cooccurence), d)).astype(np.float64)
+        self.gradsqW = np.ones_like(self.W, dtype=np.float64)
+        self.gradsqC = np.ones_like(self.C, dtype=np.float64)
 
-    def train(self, step_size=0.1, workers = 9, batch_size=50, verbose=False):
+    def train(self, step_size=0.001, workers=1, batch_size=50, verbose=False, reset=False):
+        """ train the model """
+        if reset:
+            self.gradsqW = np.ones_like(self.W, dtype=np.float64)
+            self.gradsqC = np.ones_like(self.C, dtype=np.float64)
+
+        
+        gamma1, gamma2 = self.gamma1, self.gamma2
         jobs = Queue(maxsize=2 * workers)
         lock = threading.Lock()  # for shared state (=number of words trained so far, log reports...)
         total_error = [0.0]

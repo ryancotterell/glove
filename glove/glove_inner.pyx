@@ -11,86 +11,151 @@
 #distutils: libraries = ['stdc++']
 #distutils: extra_compile_args = ["-std=c++11"]
 
-# Based on code by Jonathn Raiman
+# Based on code by Jonathan Raiman
 # Contains substantial variable renamings to accomodate my weltanschauung
 
 import cython
 import numpy as np
 cimport numpy as np
 
-from libc.math cimport exp, log, pow, sqrt
+from libc.math cimport exp, log, pow, sqrt, isnan, fabs
 
-ctypedef np.float64_t REAL_t
-ctypedef np.uint32_t  INT_t
+ctypedef double REAL_t
+ctypedef int  INT_t
 
 cdef inline void gaussian(
         REAL_t* W, REAL_t* C,
         REAL_t* gradsqW, REAL_t* gradsqC,
         REAL_t* error,
         int vector_size, REAL_t step_size,
-        long l1, long l2, REAL_t dot, REAL_t x_ij, REAL_t f_ij) nogil:
+        long l1, long l2, REAL_t dot, REAL_t x_ij, REAL_t f_ij, REAL_t gamma1, REAL_t gamma2) nogil:
     
     """ Gaussian ``emission'' distribution """
+    f_ij = 1.0
     cdef REAL_t gW, gC
     cdef int b
     cdef REAL_t diff = dot - log(x_ij)
     cdef REAL_t fdiff = f_ij * diff
     
-    
-    # weighted squared error
+    # weighted squared error (metric of optimization)
     error[0] += 0.5 * fdiff * diff
-    
-    # multiple in step size
-    fdiff *= step_size
 
+    # squared error
+    #error[0] += (x_ij - exp(dot))**2
+
+    # multiple in step size
     # take gradient steps with AdaGrad
     for b in range(vector_size):
         # compute the gradients 
-        gW = fdiff * C[b + l2]
-        gC = fdiff * W[b + l1]
+        gW = step_size * (fdiff * C[b + l2] + gamma1  * W[b + l1])
+        gC = step_size * (fdiff * W[b + l1] + gamma2 * C[b + l2])
         
         # adaptive learning rate updates (Duchi et al. 2011)
         W[b + l1] -= (gW / sqrt(gradsqW[b + l1]))
         C[b + l2] -= (gC / sqrt(gradsqC[b + l2]))
+        
         gradsqW[b + l1] += gW * gW
         gradsqC[b + l2] += gC * gC
 
-cdef inline void poisson(
+cdef inline void laplace(
         REAL_t* W, REAL_t* C,
         REAL_t* gradsqW, REAL_t* gradsqC,
         REAL_t* error,
         int vector_size, REAL_t step_size,
-        long l1, long l2, REAL_t dot, REAL_t x_ij, REAL_t f_ij) nogil:
-    """ Poisson ``emission'' distribution """
+        long l1, long l2, REAL_t dot, REAL_t x_ij, REAL_t f_ij, REAL_t gamma1, REAL_t gamma2) nogil:
+    
+    """ Gaussian ``emission'' distribution """
+    f_ij = 1.0
     cdef REAL_t gW, gC
     cdef int b
-    cdef REAL_t score = -x_ij * dot + exp(dot)
-    cdef REAL_t fscore = f_ij * score
+    cdef REAL_t target = log(x_ij)
+    cdef REAL_t diff = dot - target
+    cdef REAL_t fdiff = f_ij * diff
     
-    # weighted squared error
-    error[0] += fscore * score
-    
-    # multiple in step size
-    fscore *= step_size
+    # weighted squared error (metric of optimization)
+    error[0] += 0.5 * fabs(fdiff)
 
+    # squared error
+    #error[0] += (x_ij - exp(dot))**2
+
+    # multiple in step size
     # take gradient steps with AdaGrad
     for b in range(vector_size):
         # compute the gradients 
-        gW = f_ij * (-x_ij + exp(dot)) * C[b + l2]
-        gC = f_ij * (-x_ij + exp(dot)) * W[b + l2]
+        if fdiff >= target:
+            gW = C[b + l2]
+            gC = W[b + l1]
+        else:
+            gW = -C[b + l2]
+            gC = -W[b + l1]
         
         # adaptive learning rate updates (Duchi et al. 2011)
         W[b + l1] -= (gW / sqrt(gradsqW[b + l1]))
         C[b + l2] -= (gC / sqrt(gradsqC[b + l2]))
+        
         gradsqW[b + l1] += gW * gW
         gradsqC[b + l2] += gC * gC
+
+
+cdef inline int poisson(
+        REAL_t* W, REAL_t* C,
+        REAL_t* gradsqW, REAL_t* gradsqC,
+        REAL_t* error,
+        int vector_size, REAL_t step_size,
+        long l1, long l2, REAL_t dot, REAL_t x_ij, REAL_t f_ij, REAL_t gamma1, REAL_t gamma2) nogil:
+
+    """ Poisson ``emission'' distribution """
+    #x_ij = min(20, x_ij)
+    f_ij = 1.0
+    cdef REAL_t gW, gC
+    cdef int b
+    cdef REAL_t score = -x_ij * dot + exp(dot)
+    cdef REAL_t fscore = f_ij * score
+
+    if isnan(fscore):
+        return 0
+    # weighted squared error (metric of optimization)
+    error[0] += fscore
+    
+    # squared error
+    error[0] += (x_ij - exp(dot))**2
+
+    # multiple in step size
+    fscore *= step_size
+    cdef double box = 2.0
+
+    # take gradient steps with AdaGrad
+    for b in range(vector_size):
+        # compute the gradients 
+        gW = step_size * (f_ij * (-x_ij + exp(dot)) * C[b + l2] + gamma1 * W[b + l1])
+        gC = step_size * (f_ij * (-x_ij + exp(dot)) * W[b + l2] + gamma2 * C[b + l2])
+        
+        # adaptive learning rate updates (Duchi et al. 2011)
+        #W[b + l1] -= gW 
+        #C[b + l2] -= gC 
+        W[b + l1] -= (gW / sqrt(gradsqW[b + l1]))
+        C[b + l2] -= (gC / sqrt(gradsqC[b + l2]))
+
+        if W[b + l1] >= 1.0 / box:
+            W[b + l1] = 1.0 / box
+        if C[b + l2] >= 1.0 / box:
+            C[b + l2] = 1.0 / box
+        if W[b + l1] <= -1.0 / box:
+            W[b+ l1] = -1.0 / box
+        if C[b + l2] <= -1.0 / box:
+            C[b + l2] = -1.0 / box
+
+        gradsqW[b + l1] += gW * gW
+        gradsqC[b + l2] += gC * gC
+
+    return 1 # good news
 
 cdef void train_thread(
         REAL_t* W, REAL_t* C,
         REAL_t* gradsqW, REAL_t* gradsqC,
         REAL_t* error,
         INT_t* words, INT_t* contexts, REAL_t* target,
-        int vector_size, int batch_size, REAL_t x_max, REAL_t alpha, REAL_t step_size) nogil:
+        int vector_size, int batch_size, REAL_t x_max, REAL_t alpha, REAL_t step_size, REAL_t gamma1, REAL_t gamma2, int model_type) nogil:
 
     cdef long long a, b, l1, l2
     cdef int example_idx = 0
@@ -111,7 +176,10 @@ cdef void train_thread(
 
         # compute annealing term
         f_ij = 1.0 if (x_ij > x_max) else pow(x_ij / x_max, alpha)
-        poisson(W, C, gradsqW, gradsqC, error, vector_size, step_size, l1, l2, dot, x_ij, f_ij)
+        if model_type == 0:
+            gaussian(W, C, gradsqW, gradsqC, error, vector_size, step_size, l1, l2, dot, x_ij, f_ij, gamma1, gamma2)
+        elif model_type == 1:
+            poisson(W, C, gradsqW, gradsqC, error, vector_size, step_size, l1, l2, dot, x_ij, f_ij, gamma1, gamma2)
 
 
 def train_model(model, jobs, float _step_size, _error):
@@ -133,6 +201,11 @@ def train_model(model, jobs, float _step_size, _error):
     cdef REAL_t x_max  = model.x_max
     cdef REAL_t alpha  = model.alpha
 
+    cdef REAL_t gamma1 = model.gamma1
+    cdef REAL_t gamma2 = model.gamma2
+
+    cdef int model_type = model.model_type
+
     # release GIL & train on the sentence
     with nogil:
         train_thread(
@@ -148,5 +221,8 @@ def train_model(model, jobs, float _step_size, _error):
             batch_size, \
             x_max, \
             alpha, \
-            step_size
+            step_size, \
+            gamma1, \
+            gamma2, \
+            model_type
         )
